@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { FileText, GitCommit, Cpu, Trash2, Calendar, Database, ShieldAlert, Circle, Eye, EyeOff } from "lucide-react";
+import { FileText, GitCommit, Cpu, Trash2, Calendar, Database, ShieldAlert, Circle, Eye, EyeOff, Share2, Twitter, Linkedin, Facebook, Link, Check } from "lucide-react";
 import { ChronicleItem } from "../types";
 
 interface ChronicleStreamProps {
@@ -12,6 +12,8 @@ interface ChronicleStreamProps {
 export default function ChronicleStream({ timeline, onDelete, loading }: ChronicleStreamProps) {
   const [filter, setFilter] = React.useState<string>("all");
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [shareOpenId, setShareOpenId] = React.useState<string | null>(null);
+  const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   // Helper to format epoch seconds into readable string
   const formatTime = (epochSeconds: number) => {
@@ -24,6 +26,12 @@ export default function ChronicleStream({ timeline, onDelete, loading }: Chronic
       second: "2-digit",
       hour12: false,
     });
+  };
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const filteredTimeline = timeline.filter((item) => {
@@ -129,6 +137,89 @@ export default function ChronicleStream({ timeline, onDelete, loading }: Chronic
 
                         {/* Card controls */}
                         <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                          
+                          {/* Share Milestone Dropdown */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setShareOpenId(shareOpenId === uniqueKey ? null : uniqueKey)}
+                              title="Share this achievement"
+                              className="p-1 px-1.5 rounded hover:bg-zinc-900 text-zinc-400 hover:text-zinc-200 transition-all flex items-center gap-1 text-[10px] uppercase cursor-pointer"
+                            >
+                              <Share2 className="h-3.5 w-3.5" />
+                              <span>Share</span>
+                            </button>
+
+                            {shareOpenId === uniqueKey && (
+                              <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShareOpenId(null)} />
+                                <div className="absolute right-0 mt-2 w-48 rounded-lg bg-zinc-950 border border-zinc-800 shadow-2xl z-50 p-1.5 font-mono text-xs">
+                                  <div className="px-2 py-1 text-[9px] uppercase text-zinc-500 font-bold border-b border-zinc-900 mb-1">
+                                    Share Milestone
+                                  </div>
+                                  
+                                  {/* X (Twitter) */}
+                                  <a
+                                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`"${item.executive_summary}" — From Project Emergence Portfolio:`)}&url=${encodeURIComponent(window.location.href)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setShareOpenId(null)}
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-zinc-900 text-zinc-300 hover:text-white transition-all"
+                                  >
+                                    <Twitter className="h-3 w-3 text-sky-400" />
+                                    <span>Share on X</span>
+                                  </a>
+
+                                  {/* LinkedIn */}
+                                  <a
+                                    href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setShareOpenId(null)}
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-zinc-900 text-zinc-300 hover:text-white transition-all"
+                                  >
+                                    <Linkedin className="h-3 w-3 text-blue-400" />
+                                    <span>Share on LinkedIn</span>
+                                  </a>
+
+                                  {/* Facebook */}
+                                  <a
+                                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={() => setShareOpenId(null)}
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-zinc-900 text-zinc-300 hover:text-white transition-all"
+                                  >
+                                    <Facebook className="h-3 w-3 text-blue-500" />
+                                    <span>Share on Facebook</span>
+                                  </a>
+
+                                  <div className="border-t border-zinc-900 my-1"></div>
+
+                                  {/* Copy Item Summary text directly */}
+                                  <button
+                                    onClick={() => {
+                                      handleCopyText(item.executive_summary, uniqueKey);
+                                      setShareOpenId(null);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-zinc-900 text-zinc-300 hover:text-white text-left transition-all cursor-pointer"
+                                  >
+                                    {copiedId === uniqueKey ? (
+                                      <>
+                                        <Check className="h-3 w-3 text-green-400" />
+                                        <span className="text-green-400">Copied text!</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Link className="h-3 w-3 text-zinc-400" />
+                                        <span>Copy text</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
                           <button
                             onClick={() => toggleExpand(uniqueKey)}
                             title="Reveal raw log metadata"

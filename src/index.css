@@ -51,3 +51,36 @@
 .glow-active {
   animation: pulseGlow 4s infinite ease-in-out;
 }
+
+/* Google Brand Material Sign-In overrides */
+.gsi-material-button {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -webkit-appearance: none;
+  background-color: #111113;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: #e3e3e3;
+  cursor: pointer;
+  height: auto;
+  outline: none;
+  position: relative;
+  transition: all .218s;
+  vertical-align: middle;
+}
+
+.gsi-material-button:hover {
+  background-color: #18181b;
+  border-color: #3f3f46;
+}
+
+.gsi-material-button .gsi-material-button-content-wrapper {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  width: 100%;
+}
+

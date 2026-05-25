@@ -6,6 +6,7 @@ import Header from "./components/Header";
 import TelemetryPanel from "./components/TelemetryPanel";
 import ChroniclerTranslator from "./components/ChroniclerTranslator";
 import ChronicleStream from "./components/ChronicleStream";
+import GoogleDriveManager from "./components/GoogleDriveManager";
 import ArchitecturalInstructions from "./components/ArchitecturalInstructions";
 
 import { SystemState, ChronicleItem, BackendStatus } from "./types";
@@ -246,6 +247,13 @@ export default function App() {
               timeline={timeline}
               onDelete={handleDeleteMilestone}
               loading={loading}
+            />
+
+            {/* Google Drive Vault Sync Daemon */}
+            <GoogleDriveManager
+              telemetry={telemetry}
+              timeline={timeline}
+              onShowMessage={showToast}
             />
 
             {/* 4. Configuration Daemons Instructions Code Blocks */}
