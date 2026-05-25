@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  /* Cosmic Emergence Theme Colors */
+  --color-cosmic-bg: #09090b;
+  --color-cosmic-surface: #121214;
+  --color-cosmic-border: #1f1f23;
+  --color-cosmic-accent: #3b82f6;
+  --color-cosmic-glow: #6366f1;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-cosmic-bg);
+    color: #f4f4f5;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+
+  /* Custom subtle scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #09090b;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1f1f23;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+}
+
+/* Micro glow keyframe animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(99, 102, 241, 0.35);
+  }
+}
+
+.glow-active {
+  animation: pulseGlow 4s infinite ease-in-out;
+}

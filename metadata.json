@@ -1,0 +1,6 @@
+{
+  "name": "Project Emergence Portfolio",
+  "description": "Autogenous Portfolio & Chronicle Stream featuring live telemetric matrix and Gemini-powered executive milestones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
