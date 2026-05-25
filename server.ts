@@ -111,10 +111,20 @@ function saveFallbackDB(data: any) {
 
 // Lazy connect to Mongo Atlas safely
 async function getDbConnection() {
-  const uri = process.env.MONGO_URI;
+  const uri = process.env.MONGO_URI ? process.env.MONGO_URI.trim() : "";
   if (!uri) {
     return null;
   }
+  
+  // Validate connection string scheme and placeholders to avoid noisy parse errors
+  const isPlaceholder = uri.includes("<user>") || uri.includes("<password>") || uri.includes("YOUR_") || uri.includes("MY_");
+  const hasValidScheme = uri.startsWith("mongodb://") || uri.startsWith("mongodb+srv://");
+
+  if (isPlaceholder || !hasValidScheme) {
+    console.log("[MONGO] Inactive or placeholder connection string detected. Safely defaulting to local persistent JSON storage.");
+    return null;
+  }
+
   if (mongoClient && dbConnected) {
     return mongoClient.db(dbName);
   }
