@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "SystemState": {
+      "title": "SystemState",
+      "description": "Represents the live matrix telemetric state",
+      "type": "object",
+      "properties": {
+        "last_pulse": { "type": "integer" },
+        "node_id": { "type": "string" },
+        "frequency_hz": { "type": "number" },
+        "status": { "type": "string" },
+        "active_vessels": { "type": "integer" }
+      },
+      "required": ["last_pulse", "node_id", "frequency_hz", "status", "active_vessels"]
+    },
+    "ChronicleItem": {
+      "title": "ChronicleItem",
+      "description": "A single chronicle portfolio achievement segment",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "integer" },
+        "source": { "type": "string" },
+        "event_type": { "type": "string" },
+        "raw_payload": { "type": "object" },
+        "executive_summary": { "type": "string" }
+      },
+      "required": ["timestamp", "source", "event_type", "raw_payload", "executive_summary"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["email", "name"]
+    }
+  },
+  "firestore": {
+    "/system_state/{stateId}": {
+      "schema": "SystemState",
+      "description": "Live matrix telemetry system state documents"
+    },
+    "/chronicle_stream/{chronicleId}": {
+      "schema": "ChronicleItem",
+      "description": "Portfolio achievements chronicle stream collection"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents"
+    }
+  }
+}

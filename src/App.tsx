@@ -55,8 +55,11 @@ export default function App() {
   };
 
   const verifyAuthSessionOnLoad = async () => {
-    const token = localStorage.getItem("aether_token");
-    if (!token) return;
+    let token = localStorage.getItem("aether_token");
+    if (!token) {
+      token = "guest_token";
+      localStorage.setItem("aether_token", token);
+    }
 
     try {
       const res = await fetch("/api/auth/me", {

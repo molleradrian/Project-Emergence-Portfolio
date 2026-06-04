@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Default-Deny Catch-All Security Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- REUSABLE SECURITY PRIMITIVES & HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && (
+        request.auth.token.email_verified == true || 
+        request.auth.token.firebase.sign_in_provider == 'google.com'
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- ENTITY SCHEMA VALIDATORS ---
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['email', 'name'])
+        && data.keys().size() == 2
+        && data.email is string && data.email.size() <= 256
+        && data.name is string && data.name.size() <= 256;
+    }
+
+    function isValidSystemState(data) {
+      return data.keys().hasAll(['last_pulse', 'node_id', 'frequency_hz', 'status', 'active_vessels'])
+        && data.keys().size() <= 6 // Allow optional _id or custom system properties
+        && data.last_pulse is int
+        && data.node_id is string && data.node_id.size() <= 128
+        && data.frequency_hz is number
+        && data.status is string && data.status.size() <= 64
+        && data.active_vessels is int;
+    }
+
+    function isValidChronicleItem(data) {
+      return data.keys().hasAll(['timestamp', 'source', 'event_type', 'raw_payload', 'executive_summary'])
+        && data.keys().size() <= 6 // Allow optional _id
+        && data.timestamp is int
+        && data.source is string && data.source.size() <= 128
+        && data.event_type is string && data.event_type.size() <= 128
+        && data.executive_summary is string && data.executive_summary.size() <= 2000
+        && data.raw_payload is map;
+    }
+
+    // --- COLLECTION MATCH RULES ---
+
+    // User Profiles containing private details (PII)
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) 
+                     && incoming().email == existing().email; // Immutable email address
+      allow delete: if false; // Profiles are permanent historical nodes
+    }
+
+    // Live Matrix Telemetry State (Public reads, authenticated updates)
+    match /system_state/{stateId} {
+      allow read: if true; // Public telemetric monitoring capability
+      allow create: if isEmailVerified() && isValidId(stateId) && isValidSystemState(incoming());
+      allow update: if isEmailVerified() && isValidId(stateId) && isValidSystemState(incoming());
+      allow delete: if false; // System state cannot be deleted
+    }
+
+    // Chronicle Accomplishment Timeline Stream (Public read, authenticated write & prune)
+    match /chronicle_stream/{chronicleId} {
+      allow list: if true; // Public readable portfolio feed
+      allow get: if true;
+      allow create: if isEmailVerified() && isValidId(chronicleId) && isValidChronicleItem(incoming());
+      allow update: if isEmailVerified() && isValidId(chronicleId) && isValidChronicleItem(incoming());
+      allow delete: if isEmailVerified() && isValidId(chronicleId);
+    }
+  }
+}
