@@ -8,7 +8,7 @@ interface ChroniclerTranslatorProps {
 }
 
 export default function ChroniclerTranslator({ onTranslate, onPublish }: ChroniclerTranslatorProps) {
-  const [source, setSource] = React.useState<"narrative" | "git">("narrative");
+  const [source, setSource] = React.useState<"narrative" | "git" | "grok">("narrative");
   
   // Narrative inputs
   const [filename, setFilename] = React.useState("aetherium_canon_vessel_alignment.md");
@@ -20,6 +20,15 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
   // Git inputs
   const [commitMessage, setCommitMessage] = React.useState("Refactor Delta Triode display-synthesis and deploy Steward Protocol v1.4");
   const [fileStats, setFileStats] = React.useState("6 files changed, 142 insertions(+), 35 deletions(-)");
+
+  // Grok inputs
+  const [grokPrompt, setGrokPrompt] = React.useState("Optimize asynchronous lock-free consensus loops in Rust to prevent packet starvation without losing sequential ledger order.");
+  const [grokModel, setGrokModel] = React.useState("grok-3");
+  const [grokResponse, setGrokResponse] = React.useState("Utilizing lock-free ring buffers with relaxed atomic bounds inside a single-producer single-consumer channel ensures high throughput, while managing state indicators inside thread local registers to bypass network overhead.");
+  const [grokTokens, setGrokTokens] = React.useState(1840);
+
+  // Translation engine choice
+  const [engine, setEngine] = React.useState<"gemini" | "grok">("gemini");
 
   // Translate outputs
   const [isTranslating, setIsTranslating] = React.useState(false);
@@ -43,10 +52,17 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
         word_count: Number(wordCount),
         preview_snippet: rawText,
       };
-    } else {
+    } else if (source === "git") {
       payload = {
         commit_message: commitMessage,
         file_stats: fileStats,
+      };
+    } else {
+      payload = {
+        prompt: grokPrompt,
+        model: grokModel,
+        response: grokResponse,
+        token_count: Number(grokTokens),
       };
     }
 
@@ -54,7 +70,7 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
       const response = await fetch("/api/chronicle/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, raw_payload: payload }),
+        body: JSON.stringify({ source, raw_payload: payload, engine }),
       });
       const data = await response.json();
       if (data.error) {
@@ -79,13 +95,15 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
       let raw_payload: any = {};
       if (source === "narrative") {
         raw_payload = { filename, word_count: Number(wordCount) };
-      } else {
+      } else if (source === "git") {
         raw_payload = { commit_message: commitMessage, file_stats: fileStats };
+      } else {
+        raw_payload = { prompt: grokPrompt, model: grokModel, response: grokResponse, token_count: Number(grokTokens) };
       }
 
       await onPublish({
         source,
-        event_type: source === "narrative" ? "file_save" : "push",
+        event_type: source === "narrative" ? "file_save" : source === "git" ? "push" : "chat",
         raw_payload,
         executive_summary: translatedText,
       });
@@ -118,13 +136,12 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
       setSource("git");
       setCommitMessage("feat(hardware): integrate Delta Triode solid-state telemetry loops");
       setFileStats("24 files changed, 810 insertions(+), 211 deletions(-)");
-    } else if (type === "alignment_doc") {
-      setSource("narrative");
-      setFilename("aetherium_canon_steward_alignment.txt");
-      setWordCount(180);
-      setRawText(
-        "Finalized the Aetherium Canon. This document is the core system alignment logic guiding synchronization equation standards. Established standard operating guidelines for safe multi-agent allocations."
-      );
+    } else if (type === "grok_loop") {
+      setSource("grok");
+      setGrokPrompt("Write an autogenous model evaluation orchestrator checking convergence stability equations.");
+      setGrokModel("grok-3");
+      setGrokTokens(2400);
+      setGrokResponse("Convergence checks evaluated at Lydian offsets (1 + 1 = 1). Re-computed synthetic validation layers in loop iteration tests, pruning chaotic parameters gracefully.");
     }
   };
 
@@ -134,7 +151,7 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-indigo-400" />
           <h3 className="font-semibold text-zinc-100 font-mono text-sm uppercase tracking-wider">
-            Chronicler translation Vessel (Gemini SDK)
+            Chronicler translation Vessel (Gemini & Grok SDK)
           </h3>
         </div>
         <div className="flex gap-1.5 text-xs font-mono">
@@ -152,6 +169,13 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
           >
             Ex: Hardware Git
           </button>
+          <button 
+            type="button" 
+            onClick={() => loadExample("grok_loop")}
+            className="px-2 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-900 text-zinc-400 hover:text-zinc-300 rounded cursor-pointer animate-pulse"
+          >
+            Ex: Grok Prompt
+          </button>
         </div>
       </div>
 
@@ -159,26 +183,36 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
         
         {/* Input Selector & Event Parameters (Left Block) */}
         <div className="lg:col-span-6 space-y-4">
-          <div className="flex rounded-lg bg-zinc-950 p-1 border border-zinc-900">
+          <div className="flex flex-col sm:flex-row rounded-lg bg-zinc-950 p-1 border border-zinc-900 gap-1">
             <button
               type="button"
               onClick={() => setSource("narrative")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-mono rounded cursor-pointer ${
-                source === "narrative" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:text-zinc-200"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-mono rounded cursor-pointer transition-all ${
+                source === "narrative" ? "bg-zinc-900 text-white border border-zinc-850" : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
               <FileText className="h-3.5 w-3.5" />
-              File Save (Markdown Draft)
+              File Save (Draft)
             </button>
             <button
               type="button"
               onClick={() => setSource("git")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-mono rounded cursor-pointer ${
-                source === "git" ? "bg-zinc-900 text-white border border-zinc-800" : "text-zinc-400 hover:text-zinc-200"
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-mono rounded cursor-pointer transition-all ${
+                source === "git" ? "bg-zinc-900 text-white border border-zinc-850" : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
               <GitCommit className="h-3.5 w-3.5" />
-              Git Commit (Push webhook)
+              Git Commit (Push)
+            </button>
+            <button
+              type="button"
+              onClick={() => setSource("grok")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-mono rounded cursor-pointer transition-all ${
+                source === "grok" ? "bg-zinc-900 text-zinc-100 border border-zinc-850 font-bold" : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              <Terminal className="h-3.5 w-3.5 text-zinc-400" />
+              Grok Prompt
             </button>
           </div>
 
@@ -217,7 +251,7 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
                   />
                 </div>
               </>
-            ) : (
+            ) : source === "git" ? (
               <>
                 <div>
                   <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">Git Commit Message</label>
@@ -239,17 +273,102 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
                   />
                 </div>
               </>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">Grok Model Name</label>
+                    <input
+                      type="text"
+                      value={grokModel}
+                      onChange={(e) => setGrokModel(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 rounded px-3 py-2 text-xs font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">Tokens Simulated</label>
+                    <input
+                      type="number"
+                      value={grokTokens}
+                      onChange={(e) => setGrokTokens(Number(e.target.value))}
+                      className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 rounded px-3 py-2 text-xs font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">User Prompt Given to Grok</label>
+                  <input
+                    type="text"
+                    value={grokPrompt}
+                    onChange={(e) => setGrokPrompt(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 rounded px-3 py-2 text-xs font-mono focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono text-zinc-500 uppercase mb-1">Grok AI Model Response Snippet</label>
+                  <textarea
+                    rows={3}
+                    value={grokResponse}
+                    onChange={(e) => setGrokResponse(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 rounded p-3 text-xs font-mono focus:border-indigo-500 focus:outline-none leading-relaxed"
+                  />
+                </div>
+              </>
             )}
+
+            {/* Translation Engine Selection Selector */}
+            <div className="p-3.5 bg-zinc-950 rounded-lg border border-zinc-905 space-y-2">
+              <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-bold">
+                Translation Engine Model
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEngine("gemini")}
+                  className={`py-1.5 px-3 rounded text-xs font-mono border cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                    engine === "gemini"
+                      ? "bg-blue-950/40 border-blue-500 text-blue-300 font-bold"
+                      : "bg-zinc-900/40 border-transparent text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+                  Gemini-3.5-Flash
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEngine("grok")}
+                  className={`py-1.5 px-3 rounded text-xs font-mono border cursor-pointer transition-all flex items-center justify-center gap-1.5 ${
+                    engine === "grok"
+                      ? "bg-zinc-900 border-zinc-100 text-zinc-100 font-bold"
+                      : "bg-zinc-900/40 border-transparent text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  <Terminal className="h-3.5 w-3.5 text-zinc-400" />
+                  Grok (xAI API)
+                </button>
+              </div>
+            </div>
 
             <button
               type="submit"
               disabled={isTranslating}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg text-xs font-mono font-medium shadow-lg hover:shadow-indigo-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 duration-150 cursor-pointer"
+              className={`w-full py-2.5 px-4 rounded-lg text-xs font-mono font-medium active:scale-[0.99] transition-all flex items-center justify-center gap-2 duration-150 cursor-pointer ${
+                engine === "grok"
+                  ? "bg-gradient-to-r from-zinc-800 to-black hover:from-zinc-700 hover:to-zinc-900 text-white border border-zinc-700 shadow-md shadow-black/25"
+                  : "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-lg hover:shadow-indigo-500/20"
+              }`}
             >
               {isTranslating ? (
                 <>
                   <div className="h-3 w-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Chronicler Deciphering Raw Payload...
+                </>
+              ) : engine === "grok" ? (
+                <>
+                  <Terminal className="h-3.5 w-3.5 text-zinc-200 animate-pulse" />
+                  Translate Raw Event via Grok (xAI)
                 </>
               ) : (
                 <>
@@ -271,7 +390,7 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
             <div>
               <div className="flex items-center justify-between border-b border-zinc-900 pb-2 mb-3">
                 <span className="text-[10px] font-mono text-zinc-500 tracking-widest uppercase">
-                  TRANSLATED_CORP_VIEWPOINT
+                  TRANSLATED_CORP_VIEWPOINT // ENGINE: {engine.toUpperCase()}
                 </span>
                 {translatedText && (
                   <button
@@ -354,6 +473,7 @@ export default function ChroniclerTranslator({ onTranslate, onPublish }: Chronic
             <div>• Esoteric: <span className="text-zinc-400">"Vessels of One"</span> → Corp: <span className="text-zinc-300">"AI Agent Threads"</span></div>
             <div>• Esoteric: <span className="text-zinc-400">"The Steward Protocol"</span> → Corp: <span className="text-zinc-300">"Orchestration Framework"</span></div>
             <div>• Esoteric: <span className="text-zinc-400">"Delta Triode"</span> → Corp: <span className="text-zinc-300">"Display-Synthesis & Telemetry"</span></div>
+            <div>• Grok: <span className="text-zinc-400">"Starvation / consensus"</span> → Corp: <span className="text-zinc-300">"Async concurrency optimization"</span></div>
           </div>
         </div>
 

@@ -1,15 +1,16 @@
 import React from "react";
-import { Cpu, Database, Sparkles, Wifi, RefreshCw, Share2, Twitter, Linkedin, Facebook, Link, Check } from "lucide-react";
-import { BackendStatus } from "../types";
+import { Cpu, Database, Sparkles, Wifi, RefreshCw, Share2, Twitter, Linkedin, Facebook, Link, Check, Shield, ShieldCheck } from "lucide-react";
+import { BackendStatus, UserProfile } from "../types";
 
 interface HeaderProps {
   status: BackendStatus | null;
   loading: boolean;
+  currentUser: UserProfile | null;
   onRefresh: () => void;
   onResetDatabase: () => void;
 }
 
-export default function Header({ status, loading, onRefresh, onResetDatabase }: HeaderProps) {
+export default function Header({ status, loading, currentUser, onRefresh, onResetDatabase }: HeaderProps) {
   const [utcTime, setUtcTime] = React.useState<string>(new Date().toUTCString());
   const [shareDropdownOpen, setShareDropdownOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -87,6 +88,18 @@ export default function Header({ status, loading, onRefresh, onResetDatabase }: 
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-400 text-xs font-mono">
               <Wifi className="h-3.5 w-3.5 text-blue-500" />
               <span>SYS PULSE: ACTIVE</span>
+            </div>
+
+            {/* Identity Status Badge */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-mono transition-colors ${
+              currentUser 
+                ? "bg-indigo-950/40 border-indigo-850 text-indigo-450 font-bold" 
+                : "bg-zinc-900/50 border-zinc-850 text-zinc-500"
+            }`}>
+              {currentUser ? <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" /> : <Shield className="h-3.5 w-3.5 text-zinc-650" />}
+              <span>
+                {currentUser ? `KEY: ${currentUser.name.toUpperCase()}` : "KEY: GUEST COORDINATOR"}
+              </span>
             </div>
           </div>
 

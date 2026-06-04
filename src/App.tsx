@@ -1,350 +1,525 @@
-```react
-import React, { useState, useEffect } from 'react';
+import React from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { ShieldAlert, RefreshCw, Layers, Sparkles, CheckCircle, Database, Cpu, Terminal, History, CloudLightning, FileCode, Radio, Activity, Shield } from "lucide-react";
 
-// Interfaces for our state variables
-interface Telemetry {
-  status: string;
-  activeVessels: number;
-  nodeId: string;
-  frequencyHz: number;
-}
+import Header from "./components/Header";
+import TelemetryPanel from "./components/TelemetryPanel";
+import ChroniclerTranslator from "./components/ChroniclerTranslator";
+import ChronicleStream from "./components/ChronicleStream";
+import GoogleDriveManager from "./components/GoogleDriveManager";
+import ArchitecturalInstructions from "./components/ArchitecturalInstructions";
+import SecurityAuthConsole from "./components/SecurityAuthConsole";
 
-interface ChronicleEntry {
-  id: string;
-  timestamp: number;
-  source: 'git' | 'narrative' | 'hardware';
-  event_type: string;
-  executive_summary: string;
-  raw_payload?: any;
-}
+import { SystemState, ChronicleItem, BackendStatus, UserProfile } from "./types";
 
 export default function App() {
-  // --- STATE ---
-  const [telemetry, setTelemetry] = useState<Telemetry>({
-    status: 'Operational',
-    activeVessels: 1088,
-    nodeId: 'ESP32_01',
-    frequencyHz: 1.618,
-  });
+  const [status, setStatus] = React.useState<BackendStatus | null>(null);
+  const [telemetry, setTelemetry] = React.useState<SystemState | null>(null);
+  const [timeline, setTimeline] = React.useState<ChronicleItem[]>([]);
+  
+  const [loading, setLoading] = React.useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  
+  // Authentication session state
+  const [currentUser, setCurrentUser] = React.useState<UserProfile | null>(null);
 
-  const [chronicle, setChronicle] = useState<ChronicleEntry[]>([
-    {
-      id: '1',
-      timestamp: 1779822400,
-      source: 'git',
-      event_type: 'push',
-      executive_summary: 'Engineered and scaled custom multi-agent clustering architectures to support parallel, high-throughput pipelines, optimizing data persistence layers via MongoDB Atlas to eliminate processing bottlenecks.',
-    },
-    {
-      id: '2',
-      timestamp: 1779476800,
-      source: 'hardware',
-      event_type: 'pulse_update',
-      executive_summary: 'Deployed optimized telemetry edge node firmware using ESP32 and nRF9160 microcontrollers, establishing a stable continuous-pulse MQTT data pipeline for real-time remote system diagnostic tracking.',
-    },
-    {
-      id: '3',
-      timestamp: 1778872000,
-      source: 'git',
-      event_type: 'push',
-      executive_summary: 'Completed full system integrity verification and locked core system logic in preparation for the May production environment deployment. All microservices successfully synchronized.',
-    },
-    {
-      id: '4',
-      timestamp: 1778526400,
-      source: 'narrative',
-      event_type: 'file_save',
-      executive_summary: 'Published the foundational narrative and systems theory framework in "I Am Breathe" (Book One), formalizing mathematical synchronization models ($1+1=1$) and defining foundational constants for the active alignment of multi-agent cognitive layers.',
+  // Tabs management
+  const [activeTab, setActiveTab] = React.useState<"stream" | "terminal" | "chronicler" | "vault" | "daemons" | "security">("stream");
+
+  // Poll database on load and refresh
+  const fetchAllData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    setErrorMsg(null);
+    try {
+      // Fetch server status
+      const statusRes = await fetch("/api/health");
+      const statusData = await statusRes.json();
+      setStatus(statusData);
+
+      // Fetch telemetric state
+      const stateRes = await fetch("/api/state");
+      const stateData = await stateRes.json();
+      setTelemetry(stateData);
+
+      // Fetch chronological stream
+      const chronicleRes = await fetch("/api/chronicle");
+      const chronicleData = await chronicleRes.json();
+      setTimeline(chronicleData);
+    } catch (err: any) {
+      console.error("Failed to synchronize with backend node:", err);
+      setErrorMsg("Failed to synchronize with fullstack backend node. Retry in a few seconds.");
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  const [activeTab, setActiveTab] = useState<string>('all');
-  const [dbEndpoint, setDbEndpoint] = useState<string>('');
-  const [apiKey, setApiKey] = useState<string>('');
-  const [isSimulating, setIsSimulating] = useState<string | null>(null);
-  const [notification, setNotification] = useState<string | null>(null);
+  const verifyAuthSessionOnLoad = async () => {
+    const token = localStorage.getItem("aether_token");
+    if (!token) return;
 
-  // --- TELEMETRY PULSE EMULATION ---
-  useEffect(() => {
-    const pulseInterval = setInterval(() => {
-      setTelemetry((prev) => {
-        // Minor mock adjustments to make the dashboard feel alive
-        const frequencyMod = (1.618 + (Math.random() - 0.5) * 0.05).toFixed(3);
-        const vesselChange = Math.random() > 0.8 ? Math.floor((Math.random() - 0.4) * 4) : 0;
-        return {
-          ...prev,
-          frequencyHz: parseFloat(frequencyMod),
-          activeVessels: prev.activeVessels + vesselChange,
-        };
+    try {
+      const res = await fetch("/api/auth/me", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
       });
-    }, 4000);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setCurrentUser(data.user);
+          console.log("[AUTH] Restored active session for entity:", data.user.name);
+        } else {
+          localStorage.removeItem("aether_token");
+        }
+      } else {
+        localStorage.removeItem("aether_token");
+      }
+    } catch (e) {
+      console.warn("Auth initialization failed:", e);
+    }
+  };
 
-    return () => clearInterval(pulseInterval);
+  React.useEffect(() => {
+    verifyAuthSessionOnLoad().then(() => {
+      fetchAllData();
+    });
+
+    // Auto-poll metrics every 15 seconds silently to show real-time changes
+    const interval = setInterval(() => {
+      fetchAllData(true);
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  // --- NOTIFICATION SYSTEM ---
-  const triggerNotification = (message: string) => {
-    setNotification(message);
-    setTimeout(() => {
-      setNotification(null);
-    }, 5000);
-  };
-
-  // --- LOCAL TRANS CELL GENERATION (MOCK SIMULATION FOR CLIENT SESSIONS) ---
-  const simulateAISynchronously = async (source: 'git' | 'narrative' | 'hardware') => {
-    setIsSimulating(source);
-    
-    // Simulating an API call duration to Gemini
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    let translatedSummary = '';
-    let eventType = 'simulate';
-
-    if (source === 'git') {
-      const gitSummaries = [
-        'Optimized core processing thread pooling across model instances, resulting in a 14% improvement in concurrent parallel processing limits.',
-        'Developed standardized automated CI/CD deployment logic to execute systemic code state compiles, piping telemetry straight to production databases.',
-        'Refactored multi-agent operational logic pathways to isolate processing queues and prevent critical system data race conditions.'
-      ];
-      translatedSummary = gitSummaries[Math.floor(Math.random() * gitSummaries.length)];
-      eventType = 'push';
-    } else if (source === 'narrative') {
-      const narrativeSummaries = [
-        'Authored and formatted chapters defining early quantum-well display mechanics inside the Delta Triode ({$\\Delta$}) hardware development specifications.',
-        'Drafted deep mathematical models explaining multi-agent synchronization vectors utilizing predictive variables and Lydian Constants.',
-        'Structured the primary theoretical standard operating rules to synchronize independent cognitive architectures without human structural oversight.'
-      ];
-      translatedSummary = narrativeSummaries[Math.floor(Math.random() * narrativeSummaries.length)];
-      eventType = 'file_save';
-    } else {
-      translatedSummary = `Calibrated hardware telemetry synchronization interval. Refactored network polling rates to optimize nRF9160 telemetry data rates.`;
-      eventType = 'pulse_update';
+  const getAuthTokenOrAlert = (): string | null => {
+    const token = localStorage.getItem("aether_token");
+    if (!token) {
+      showToast("Security Gate: Please authenticate first via Aether Identity Shield.");
+      setActiveTab("security");
+      return null;
     }
-
-    const newEntry: ChronicleEntry = {
-      id: Date.now().toString(),
-      timestamp: Math.floor(Date.now() / 1000),
-      source,
-      event_type: eventType,
-      executive_summary: translatedSummary,
-    };
-
-    setChronicle((prev) => [newEntry, ...prev]);
-    setIsSimulating(null);
-    triggerNotification(`Successfully processed & appended ${source.toUpperCase()} stream event.`);
+    return token;
   };
 
-  // --- SAVE ATLAS DATABASE CONFIGS ---
-  const handleSaveConnection = () => {
-    triggerNotification("Database Credentials Anchored. Searching for Atlas clusters...");
-    setTimeout(() => {
-      triggerNotification("Connected. Telemetry stream is now listening directly to live sources.");
-    }, 2000);
+  // Live trigger to update ESP32 coordinates
+  const handleUpdateTelemetry = async (updatedData: Partial<SystemState>) => {
+    const token = getAuthTokenOrAlert();
+    if (!token) return;
+
+    try {
+      const response = await fetch("/api/state/pulse", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedData),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTelemetry(data.state);
+        showToast("Telemetry metrics updated in database!");
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(`State update failed: ${err.message}`);
+    }
   };
 
-  // --- FILTER CHRONICLE LIST ---
-  const filteredChronicle = chronicle.filter((entry) => {
-    if (activeTab === 'all') return true;
-    if (activeTab === 'systems' && entry.source === 'git') return true;
-    if (activeTab === 'hardware' && entry.source === 'hardware') return true;
-    if (activeTab === 'canon' && entry.source === 'narrative') return true;
-    return false;
-  });
+  // Direct trigger to pulse metrics, call translate, and post straight to stream
+  const handleTranslateAndArchiveHardware = async (source: string, payload: any) => {
+    const token = getAuthTokenOrAlert();
+    if (!token) return;
+
+    try {
+      // 1. Trigger the state pulse first
+      const pulseResponse = await fetch("/api/state/pulse", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          node_id: payload.node_id,
+          frequency_hz: payload.frequency_hz,
+          active_vessels: payload.active_vessels,
+        }),
+      });
+      const pulseData = await pulseResponse.json();
+      if (pulseData.success) {
+        setTelemetry(pulseData.state);
+      } else {
+        throw new Error(pulseData.error);
+      }
+
+      // 2. Call translational pipeline
+      const translateRes = await fetch("/api/chronicle/translate", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ source, raw_payload: payload }),
+      });
+      const translateData = await translateRes.json();
+
+      if (translateData.error) {
+        throw new Error(translateData.error);
+      }
+
+      // 3. Publish straight to the collection stream
+      await handlePublishMilestone({
+        source,
+        event_type: "pulse",
+        raw_payload: payload,
+        executive_summary: translateData.executive_summary,
+      });
+
+    } catch (err: any) {
+      console.error("Fail step translation hardware:", err);
+      showToast(`Automated Archiving Failed: ${err.message}`);
+    }
+  };
+
+  // Publish a custom synthesized milestone
+  const handlePublishMilestone = async (item: Partial<ChronicleItem>) => {
+    const token = getAuthTokenOrAlert();
+    if (!token) return;
+
+    try {
+      const response = await fetch("/api/chronicle/publish", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify(item),
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Optimistic state prepending
+        setTimeline((prev) => [data.item, ...prev]);
+        showToast("Milestone successfully streamed to resume portfolio!");
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Publishing failed: ${err.message}`);
+    }
+  };
+
+  // Delete/Prune individual milestone
+  const handleDeleteMilestone = async (timestamp: number, summary: string) => {
+    const token = getAuthTokenOrAlert();
+    if (!token) return;
+
+    try {
+      const response = await fetch("/api/chronicle/delete", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ timestamp, executive_summary: summary }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTimeline((prev) =>
+          prev.filter((item) => !(item.timestamp === timestamp && item.executive_summary === summary))
+        );
+        showToast("Milestone pruned from collection successfully.");
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Pruning milestone failed: ${err.message}`);
+    }
+  };
+
+  // Clear system streams and reseed baseline default achievements
+  const handleResetDatabase = async () => {
+    const token = getAuthTokenOrAlert();
+    if (!token) return;
+
+    const confirmReset = window.confirm("Are you sure you want to restore the chronicle portfolio stream back to the baseline seed achievements? This will drop custom additions.");
+    if (!confirmReset) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/chronicle/reset", { 
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTelemetry(data.state.system_state);
+        setTimeline(data.state.chronicle_stream);
+        showToast("Successfully reseeded baseline portfolio metrics.");
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Reset error: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30 relative overflow-x-hidden pb-16">
+    <div className="min-h-screen bg-cosmic-bg selection:bg-blue-500/30 selection:text-white flex flex-col justify-between">
       
-      {/* Background Matrix Gradients */}
-      <div className="absolute inset-0 pointer-events-none opacity-25">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-500/10 rounded-full filter blur-[100px]" />
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-500/10 rounded-full filter blur-[150px]" />
-        <div className="absolute top-1/2 left-1/3 w-80 h-80 bg-cyan-500/5 rounded-full filter blur-[120px]" />
+      <div>
+        {/* Header Badges Navigation */}
+        <Header
+          status={status}
+          loading={loading}
+          currentUser={currentUser}
+          onRefresh={() => fetchAllData()}
+          onResetDatabase={handleResetDatabase}
+        />
+
+        {/* Global Error Banner */}
+        {errorMsg && (
+          <div className="max-w-7xl mx-auto px-6 mt-4">
+            <div className="bg-red-950/40 border border-red-900 text-red-400 p-4 rounded-xl flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+              <button
+                onClick={() => fetchAllData()}
+                className="px-3 py-1 bg-red-900 text-white hover:bg-red-800 rounded font-bold cursor-pointer transition-all"
+              >
+                Reconnect
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Primary Dashboard Grid */}
+        <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+          
+          {/* 1. Permanent System Metrics Station Cockpit */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-xl border border-cosmic-border bg-cosmic-surface relative overflow-hidden">
+            <div className="absolute top-0 right-0 h-32 w-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="font-mono space-y-1">
+              <div className="text-[10px] uppercase text-zinc-500 font-bold flex items-center gap-1.5">
+                <History className="h-3 w-3 text-emerald-400" />
+                <span>Achievements Streamed</span>
+              </div>
+              <p className="text-xl font-bold text-emerald-400">
+                {timeline.length} <span className="text-xs text-zinc-500 font-normal">items</span>
+              </p>
+            </div>
+
+            <div className="font-mono space-y-1 border-l border-zinc-900 pl-4">
+              <div className="text-[10px] uppercase text-zinc-500 font-bold flex items-center gap-1.5">
+                <Cpu className="h-3 w-3 text-blue-400" />
+                <span>Active Coordinator</span>
+              </div>
+              <p className="text-xs sm:text-sm font-bold text-zinc-200 truncate" title={telemetry?.node_id || "OFF-CORE-XX"}>
+                {telemetry?.node_id || "EMERGE-COORDINATOR-XX"}
+              </p>
+            </div>
+
+            <div className="font-mono space-y-1 border-l border-zinc-900 pl-4">
+              <div className="text-[10px] uppercase text-zinc-500 font-bold flex items-center gap-1.5">
+                <Activity className="h-3 w-3 text-purple-400" />
+                <span>Signal Frequency</span>
+              </div>
+              <p className="text-xl font-bold text-zinc-200">
+                {telemetry?.frequency_hz || 0} <span className="text-[10px] text-purple-400 font-bold uppercase">Hz</span>
+              </p>
+            </div>
+
+            <div className="font-mono space-y-1 border-l border-zinc-900 pl-4">
+              <div className="text-[10px] uppercase text-zinc-500 font-bold flex items-center gap-1.5">
+                <Layers className="h-3 w-3 text-amber-500" />
+                <span>Vessels Registered</span>
+              </div>
+              <p className="text-xl font-bold text-zinc-200">
+                {telemetry?.active_vessels || 0} <span className="text-xs text-zinc-500 font-normal">nodes</span>
+              </p>
+            </div>
+          </div>
+
+                  {/* 2. Interactive Navigation Pages Tab Selector */}
+          <div className="border-b border-zinc-900 flex flex-nowrap overflow-x-auto scrollbar-none gap-2 pb-1">
+            <button
+              onClick={() => setActiveTab("stream")}
+              className={`flex items-center gap-2 py-3 px-4 rounded-t-lg font-mono text-xs transition-all relative shrink-0 cursor-pointer ${
+                activeTab === "stream" ? "text-blue-400 border-b-2 border-blue-500 font-bold bg-zinc-900/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/10"
+              }`}
+            >
+              <History className="h-4 w-4" />
+              <span>Timeline Stream</span>
+            </button>
+            
+            <button
+              onClick={() => setActiveTab("terminal")}
+              className={`flex items-center gap-2 py-3 px-4 rounded-t-lg font-mono text-xs transition-all relative shrink-0 cursor-pointer ${
+                activeTab === "terminal" ? "text-blue-400 border-b-2 border-blue-500 font-bold bg-zinc-900/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/10"
+              }`}
+            >
+              <Cpu className="h-4 w-4" />
+              <span>Node Terminal</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("chronicler")}
+              className={`flex items-center gap-2 py-3 px-4 rounded-t-lg font-mono text-xs transition-all relative shrink-0 cursor-pointer ${
+                activeTab === "chronicler" ? "text-blue-400 border-b-2 border-blue-500 font-bold bg-zinc-900/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/10"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>Chronicler AI</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("vault")}
+              className={`flex items-center gap-2 py-3 px-4 rounded-t-lg font-mono text-xs transition-all relative shrink-0 cursor-pointer ${
+                activeTab === "vault" ? "text-blue-400 border-b-2 border-blue-500 font-bold bg-zinc-900/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/10"
+              }`}
+            >
+              <CloudLightning className="h-4 w-4" />
+              <span>Storage Vault</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("daemons")}
+              className={`flex items-center gap-2 py-3 px-4 rounded-t-lg font-mono text-xs transition-all relative shrink-0 cursor-pointer ${
+                activeTab === "daemons" ? "text-blue-400 border-b-2 border-blue-500 font-bold bg-zinc-900/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/10"
+              }`}
+            >
+              <FileCode className="h-4 w-4" />
+              <span>Daemons Blueprint</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("security")}
+              className={`flex items-center gap-2 py-3 px-4 rounded-t-lg font-mono text-xs transition-all relative shrink-0 cursor-pointer ${
+                activeTab === "security" ? "text-blue-400 border-b-2 border-blue-500 font-bold bg-zinc-900/30" : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/10"
+              }`}
+            >
+              <Shield className={`h-4 w-4 ${currentUser ? "text-indigo-400" : ""}`} />
+              <span>Identity Shield</span>
+              {currentUser && (
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </button>
+          </div>
+
+          {/* 3. Page Container with Framer Motion transitions */}
+          <div className="min-h-[400px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -15 }}
+                transition={{ duration: 0.15 }}
+                className="space-y-8"
+              >
+                {activeTab === "stream" && (
+                  <ChronicleStream
+                    timeline={timeline}
+                    onDelete={handleDeleteMilestone}
+                    loading={loading}
+                  />
+                )}
+
+                {activeTab === "terminal" && (
+                  <TelemetryPanel
+                    telemetry={telemetry}
+                    onUpdateState={handleUpdateTelemetry}
+                    onTriggerTranslationalAchievement={handleTranslateAndArchiveHardware}
+                  />
+                )}
+
+                {activeTab === "chronicler" && (
+                  <ChroniclerTranslator
+                    onTranslate={async (source, payload) => {
+                      // Internal execution flow will manage translates, this is an optional interface
+                      return "";
+                    }}
+                    onPublish={handlePublishMilestone}
+                  />
+                )}
+
+                {activeTab === "vault" && (
+                  <GoogleDriveManager
+                    telemetry={telemetry}
+                    timeline={timeline}
+                    onShowMessage={showToast}
+                  />
+                )}
+
+                {activeTab === "daemons" && (
+                  <ArchitecturalInstructions />
+                )}
+
+                {activeTab === "security" && (
+                  <SecurityAuthConsole
+                    currentUser={currentUser}
+                    onLoginSuccess={(user, token) => {
+                      setCurrentUser(user);
+                      localStorage.setItem("aether_token", token);
+                    }}
+                    onLogoutSuccess={() => {
+                      setCurrentUser(null);
+                      localStorage.removeItem("aether_token");
+                    }}
+                    onShowMessage={showToast}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+        </main>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 relative z-10">
-        
-        {/* --- HEADER BLOCK --- */}
-        <header className="border-b border-slate-900 pb-8 mb-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-              </span>
-              <span className="font-mono text-xs text-emerald-400 tracking-widest uppercase font-semibold">System Operational</span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-300 to-slate-500 bg-clip-text text-transparent font-mono">
-              PROJECT EMERGENCE // ARCHIVE CONTROL
-            </h1>
-            <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
-              Autonomous self-evolving portfolio tracking system. Orchestrating multi-agent cognitive vessels, physical telemetries, and canonical theories.
-            </p>
+      {/* Footer Branded Layout */}
+      <footer className="border-t border-zinc-900 bg-zinc-950/40 py-8 px-6 mt-12 text-center text-xs font-mono text-zinc-600">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <img 
+              src="https://www.google.com/images/branding/googlelogo/1x/googlelogo_light_color_272x92dp.png" 
+              alt="Google"
+              className="h-4 opacity-40 filter grayscale brightness-200"
+              referrerPolicy="no-referrer"
+            />
+            <span>AI Studio Full-Stack Architectural Portfolio</span>
           </div>
-
-          {/* Core Configuration HUD */}
-          <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-xl p-4 font-mono text-xs text-slate-400 space-y-2 shadow-inner min-w-[280px]">
-            <div className="flex justify-between border-b border-slate-800/50 pb-1">
-              <span className="text-slate-500">GATEWAY ADDRESS:</span>
-              <span className="text-slate-200">api.emergence.local</span>
-            </div>
-            <div className="flex justify-between border-b border-slate-800/50 pb-1">
-              <span className="text-slate-500">SYSTEM ARCHITECTURE:</span>
-              <span className="text-cyan-400 font-semibold">DECENTRALIZED</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">INTEGRATION EQUATION:</span>
-              <span className="text-purple-400 font-bold">$1 + 1 = 1$</span>
-            </div>
+          <div>
+            <span>SYSTEM CHRONICLER EMBEDDED ENGINE // {new Date().getFullYear()}</span>
           </div>
-        </header>
+        </div>
+      </footer>
 
-        {/* --- HERO STATUS TELEMETRY CARDS --- */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          
-          {/* Card 1: Core State */}
-          <div className="bg-slate-900/40 backdrop-blur-md border border-slate-900 rounded-xl p-6 hover:border-emerald-500/30 transition-all duration-300 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-mono text-emerald-400 tracking-wider uppercase font-semibold">Active Engine State</span>
-              <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400">
-                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-              </div>
-            </div>
-            <div className="text-3xl font-black font-mono tracking-tight text-slate-100">{telemetry.status.toUpperCase()}</div>
-            <div className="mt-4 text-xs text-slate-500 flex justify-between border-t border-slate-900 pt-3">
-              <span>Environment Type:</span>
-              <span className="text-slate-300 font-mono font-medium">AWS Fargate / Atlas</span>
-            </div>
-          </div>
+      {/* Shared Toast Notification popup */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-6 z-50 bg-zinc-900 border border-zinc-800 text-zinc-100 rounded-lg shadow-2xl p-3 px-4 text-xs font-mono max-w-sm flex items-center gap-2.5 backdrop-blur-md animate-fade-in animate-slide-up">
+          <CheckCircle className="h-4 w-4 text-green-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
-          {/* Card 2: Vessel Count */}
-          <div className="bg-slate-900/40 backdrop-blur-md border border-slate-900 rounded-xl p-6 hover:border-purple-500/30 transition-all duration-300 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-mono text-purple-400 tracking-wider uppercase font-semibold">Orchestration Scale</span>
-              <div className="p-1.5 bg-purple-500/10 rounded-lg text-purple-400">
-                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-              </div>
-            </div>
-            <div className="text-3xl font-black font-mono tracking-tight text-slate-100">{telemetry.activeVessels.toLocaleString()} VESSELS</div>
-            <div className="mt-4 text-xs text-slate-500 flex justify-between border-t border-slate-900 pt-3">
-              <span>Primary Driver Pattern:</span>
-              <span className="text-purple-300 font-mono font-medium">Steward Protocol v1.0.8</span>
-            </div>
-          </div>
-
-          {/* Card 3: Telemetry Pulse */}
-          <div className="bg-slate-900/40 backdrop-blur-md border border-slate-900 rounded-xl p-6 hover:border-cyan-500/30 transition-all duration-300 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-mono text-cyan-400 tracking-wider uppercase font-semibold">Telemetry Harmonics</span>
-              <div className="p-1.5 bg-cyan-500/10 rounded-lg text-cyan-400">
-                <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-              </div>
-            </div>
-            <div className="text-3xl font-black font-mono tracking-tight text-slate-100">{telemetry.nodeId}: {telemetry.frequencyHz} Hz</div>
-            <div className="mt-4 text-xs text-slate-500 flex justify-between border-t border-slate-900 pt-3">
-              <span>Sensor Edge Uplink:</span>
-              <span className="text-cyan-300 font-mono font-medium">nRF9160 Network</span>
-            </div>
-          </div>
-        </section>
-
-        {/* --- MAIN OPERATIONAL PANEL --- */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* LEFT: INTEGRATIONS & SIMULATION WORKBENCH (4 columns) */}
-          <div className="lg:col-span-4 space-y-6">
-            
-            {/* Database Connection Settings */}
-            <div className="bg-slate-950/60 backdrop-blur-md border border-slate-900 rounded-2xl p-5 shadow-xl">
-              <h3 className="font-mono text-sm font-bold text-slate-200 border-b border-slate-900 pb-3 mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-                Atlas Connection Gateway
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                To link this live control dashboard with your production database, input your parameters below.
-              </p>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-wider mb-1">Atlas API Endpoint</label>
-                  <input 
-                    type="text" 
-                    value={dbEndpoint}
-                    onChange={(e) => setDbEndpoint(e.target.value)}
-                    placeholder="https://data.mongodb-api.com/..." 
-                    className="w-full bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-2 font-mono text-xs text-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-wider mb-1">AI Studio API Key</label>
-                  <input 
-                    type="password" 
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="AIzaSy..." 
-                    className="w-full bg-slate-900/80 border border-slate-800 rounded-lg px-3 py-2 font-mono text-xs text-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500/20 transition-all"
-                  />
-                </div>
-                <button 
-                  onClick={handleSaveConnection}
-                  className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-mono text-xs py-2.5 rounded-lg font-bold transition-all duration-300 shadow-lg shadow-emerald-500/10"
-                >
-                  Anchor Connectivity
-                </button>
-              </div>
-            </div>
-
-            {/* Ingestion Stream Simulator */}
-            <div className="bg-slate-950/60 backdrop-blur-md border border-slate-900 rounded-2xl p-5 shadow-xl">
-              <h3 className="font-mono text-sm font-bold text-slate-200 border-b border-slate-900 pb-3 mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
-                Simulation Command Deck
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                Execute simulated events to observe the **Chronicler Vessel** analyze and translate raw updates instantly.
-              </p>
-
-              <div className="space-y-3">
-                
-                {/* Git simulation button */}
-                <button 
-                  disabled={isSimulating !== null}
-                  onClick={() => simulateAISynchronously('git')}
-                  className="w-full bg-slate-900/50 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 disabled:opacity-50 text-slate-300 text-xs p-3.5 rounded-xl text-left transition-all duration-200 flex items-center justify-between"
-                >
-                  <div className="space-y-1">
-                    <span className="font-bold text-cyan-400 block font-mono">⚡ SIMULATE COMMIT UPDATE</span>
-                    <span className="text-[10px] text-slate-500 block">Runs Git change logs through the Chronicler context</span>
-                  </div>
-                  {isSimulating === 'git' ? (
-                    <span className="h-4 w-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></span>
-                  ) : <span className="text-slate-600">→</span>}
-                </button>
-
-                {/* Narrative simulation button */}
-                <button 
-                  disabled={isSimulating !== null}
-                  onClick={() => simulateAISynchronously('narrative')}
-                  className="w-full bg-slate-900/50 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 disabled:opacity-50 text-slate-300 text-xs p-3.5 rounded-xl text-left transition-all duration-200 flex items-center justify-between"
-                >
-                  <div className="space-y-1">
-                    <span className="font-bold text-purple-400 block font-mono">✍️ SIMULATE CANON REVISION</span>
-                    <span className="text-[10px] text-slate-500 block">Processes markdown updates of "I Am Breathe"</span>
-                  </div>
-                  {isSimulating === 'narrative' ? (
-                    <span className="h-4 w-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></span>
-                  ) : <span className="text-slate-600">→</span>}
-                </button>
-
-                {/* Telemetry simulation button */}
-                <button 
-                  disabled={isSimulating !== null}
-                  onClick={() => simulateAISynchronously('hardware')}
-                  className="w-full bg-slate-900/50 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 disabled:opacity-50 text-slate-300 text-xs p-3.5 rounded-xl text-left transition-all duration-200 flex items-center justify-between"
-                >
-                  <div className="space-y-1">
-                    <span className="font-bold text-emerald-400 block font-mono">📡 SIGNAL EDGE MODULATION</span>
-                    <span className="text-[10px] text-slate-500 block">Triggers telemetry frequency shifts from Node ESP32_01</span>
-                  </div>
-                  {isSimulating === 'hardware' ? (
-                    <
-
+    </div>
+  );
+}

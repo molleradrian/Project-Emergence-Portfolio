@@ -1,6 +1,6 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { FileText, GitCommit, Cpu, Trash2, Calendar, Database, ShieldAlert, Circle, Eye, EyeOff, Share2, Twitter, Linkedin, Facebook, Link, Check } from "lucide-react";
+import { FileText, GitCommit, Cpu, Trash2, Calendar, Database, ShieldAlert, Circle, Eye, EyeOff, Share2, Twitter, Linkedin, Facebook, Link, Check, Terminal } from "lucide-react";
 import { ChronicleItem } from "../types";
 
 interface ChronicleStreamProps {
@@ -61,8 +61,8 @@ export default function ChronicleStream({ timeline, onDelete, loading }: Chronic
         </div>
 
         {/* Filter Badges */}
-        <div className="flex items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-900 rounded-lg text-xs font-mono">
-          {["all", "narrative", "git", "hardware"].map((s) => (
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-zinc-950 border border-zinc-900 rounded-lg text-xs font-mono">
+          {["all", "narrative", "git", "hardware", "grok"].map((s) => (
             <button
               key={s}
               onClick={() => setFilter(s)}
@@ -102,6 +102,9 @@ export default function ChronicleStream({ timeline, onDelete, loading }: Chronic
               } else if (item.source === "hardware") {
                 srcColor = "text-blue-400 border-blue-900 bg-blue-950/20";
                 SrcIcon = Cpu;
+              } else if (item.source === "grok") {
+                srcColor = "text-zinc-100 border-zinc-700 bg-zinc-900/40";
+                SrcIcon = Terminal;
               }
 
               return (

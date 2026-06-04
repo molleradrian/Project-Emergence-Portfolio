@@ -10,8 +10,8 @@ export interface SystemState {
 export interface ChronicleItem {
   _id?: string;
   timestamp: number;
-  source: "narrative" | "git" | "hardware" | string;
-  event_type: "file_save" | "push" | "pulse" | string;
+  source: "narrative" | "git" | "hardware" | "grok" | string;
+  event_type: "file_save" | "push" | "pulse" | "chat" | string;
   raw_payload: {
     filename?: string;
     word_count?: number;
@@ -22,6 +22,11 @@ export interface ChronicleItem {
     voltage?: number;
     frequency_hz?: number;
     active_vessels?: number;
+    // Grok prompt payload elements
+    prompt?: string;
+    model?: string;
+    response?: string;
+    token_count?: number;
     [key: string]: any;
   };
   executive_summary: string;
@@ -34,4 +39,10 @@ export interface BackendStatus {
   database_connected: boolean;
   gemini_key_configured: boolean;
   current_time: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
 }
