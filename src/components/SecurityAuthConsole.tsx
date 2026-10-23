@@ -218,6 +218,7 @@ export default function SecurityAuthConsole({
                         <input
                           type="text"
                           required
+                          autoComplete="name"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           placeholder="Jane Doe"
@@ -236,6 +237,7 @@ export default function SecurityAuthConsole({
                       <input
                         type="email"
                         required
+                        autoComplete="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="coordinator@emergence.io"
@@ -253,6 +255,7 @@ export default function SecurityAuthConsole({
                       <input
                         type="password"
                         required
+                        autoComplete={isLoginBlock ? "current-password" : "new-password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••••••"
